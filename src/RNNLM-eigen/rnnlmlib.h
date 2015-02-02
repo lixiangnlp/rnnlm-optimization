@@ -29,6 +29,30 @@ typedef real synapse;
 //    real weight;	//weight of synapse
 //};
 
+struct Layer
+{
+    rnn::DenseVec ac;
+    rnn::DenseVec er;
+
+    void init(size_t i_size)
+    {
+        ac.setZero(i_size);
+        er.setZero(i_size);
+    }
+
+    void copy(const Layer& rhs)
+    {
+
+    }
+
+    void copyActivation(const Layer& rhs)
+    {
+
+    }
+};
+
+typedef rnn::DenseMat SynapseMat;
+
 struct vocab_word {
     int cn;
     char word[MAX_STRING];
@@ -74,7 +98,6 @@ protected:
     float min_improvement;
     int iter;
     int vocab_max_size;
-    int vocab_size;
     int train_words;
     int train_cur_pos;
     int counter;
@@ -94,11 +117,9 @@ protected:
     void sortVocab();
     int *vocab_hash;
     int vocab_hash_size;
-    
-    int layer0_size;
+
+    int vocab_size;
     int layer1_size;
-    int layerc_size;
-    int layer2_size;
     
     long long direct_size;
     int direct_order;
@@ -106,48 +127,34 @@ protected:
     
     int bptt;
     int bptt_block;
-    int *bptt_history;
-    neuron *bptt_hidden_er;
-    neuron *bptt_hidden_ac;
-    synapse *bptt_syn0;
+    std::vector<int> bptt_history;
+    std::vector<Layer> bptt_hidden;
+    SynapseMat bptt_syn0h;
+    SynapseMat bptt_syn0v;
     
     int gen;
 
     int independent;
     
-    neuron *neu0_ac;		//neurons in input layer
-    neuron *neu0_er;
-    neuron *neu1_ac;		//neurons in hidden layer
-    neuron *neu1_er;
-    neuron *neuc_ac;		//neurons in hidden layer
-    neuron *neuc_er;
-    neuron *neu2_ac;		//neurons in output layer
-    neuron *neu2_er;
+    Layer neu0;
+    Layer neu1;
+    Layer neu2;
 
-    synapse *syn0;		//weights between input and hidden layer
-    synapse *syn1;		//weights between hidden and output layer (or hidden and compression if compression>0)
-    synapse *sync;		//weights between hidden and compression layer
-    direct_t *syn_d;		//direct parameters between input and output layer (similar to Maximum Entropy model parameters)
+    SynapseMat syn0v;		//weights between input and hidden layer
+    SynapseMat syn0h;
+    SynapseMat syn1;		//weights between hidden and output layer (or hidden and compression if compression>0)
     
     //backup used in training:
-    neuron *neu0b_ac;
-    neuron *neu1b_ac;
-    neuron *neucb_ac;
-    neuron *neu2b_ac;
-    neuron *neu0b_er;
-    neuron *neu1b_er;
-    neuron *neucb_er;
-    neuron *neu2b_er;
+    Layer neu0b;
+    Layer neu1b;
+    Layer neu2b;
 
-    synapse *syn0b;
-    synapse *syn1b;
-    synapse *syncb;
-    direct_t *syn_db;
+    SynapseMat syn0vb;
+    SynapseMat syn0hb;
+    SynapseMat syn1b;
     
     //backup used in n-bset rescoring:
-    neuron *neu1b2_ac;
-    neuron *neu1b2_er;
-    
+    Layer neu1b2;
     
 public:
 
@@ -173,7 +180,6 @@ public:
 	
 	alpha=0.1;
 	beta=0.0000001;
-	//beta=0.00000;
 	alpha_divide=0;
 	logp=0;
 	llogp=-100000000;
@@ -194,46 +200,10 @@ public:
 	
 	bptt=0;
 	bptt_block=10;
-    bptt_history=NULL;
-    bptt_hidden_ac=NULL;
-    bptt_hidden_er=NULL;
-	bptt_syn0=NULL;
 	
 	gen=0;
 
 	independent=0;
-	
-    neu0_ac=NULL;
-    neu0_er=NULL;
-    neu1_ac=NULL;
-    neu1_er=NULL;
-    neuc_er=NULL;
-    neuc_ac=NULL;
-    neu2_ac=NULL;
-    neu2_er=NULL;
-	
-	syn0=NULL;
-	syn1=NULL;
-	sync=NULL;
-	syn_d=NULL;
-	syn_db=NULL;
-	//backup
-    neu0b_ac=NULL;
-    neu0b_er=NULL;
-    neu1b_ac=NULL;
-    neu1b_er=NULL;
-    neucb_ac=NULL;
-    neucb_er=NULL;
-    neu2b_ac=NULL;
-    neu2b_er=NULL;
-	
-    neu1b2_ac=NULL;
-    neu1b2_er=NULL;
-	
-	syn0b=NULL;
-	syn1b=NULL;
-	syncb=NULL;
-	//
 	
 	rand_seed=1;
 	
@@ -251,51 +221,18 @@ public:
     
     ~CRnnLM()		//destructor, deallocates memory
     {
-	int i;
-	
-    if (neu0_ac!=NULL) {
-        free(neu0_ac);
-        free(neu0_er);
-        free(neu1_ac);
-        free(neu1_er);
-        if (neuc_ac!=NULL) free(neuc_ac); free(neuc_er);
-        free(neu2_ac); free(neu2_er);
-	    
-	    free(syn0);
-	    free(syn1);
-	    if (sync!=NULL) free(sync);
-	    
-	    if (syn_d!=NULL) free(syn_d);
+        int i;
+        if (vocab=NULL)
+        {
+            for (i=0; i<class_size; i++) free(class_words[i]);
+            free(class_max_cn);
+            free(class_cn);
+            free(class_words);
 
-	    if (syn_db!=NULL) free(syn_db);
-
-	    //
-        free(neu0b_ac); free(neu0b_er);
-        free(neu1b_ac); free(neu1b_er);
-        if (neucb_ac!=NULL) free(neucb_ac); free(neucb_er);
-        free(neu2b_ac); free(neu2b_er);
-
-        free(neu1b2_ac); free(neu1b2_er);
-	    
-	    free(syn0b);
-	    free(syn1b);
-	    if (syncb!=NULL) free(syncb);
-	    //
-	    
-	    for (i=0; i<class_size; i++) free(class_words[i]);
-	    free(class_max_cn);
-	    free(class_cn);
-	    free(class_words);
-	
-	    free(vocab);
-	    free(vocab_hash);
-
-        if (bptt_history!=NULL) free(bptt_history);
-        if (bptt_hidden_er!=NULL) free(bptt_hidden_ac); free(bptt_hidden_er);
-            if (bptt_syn0!=NULL) free(bptt_syn0);
-	    
-	    //todo: free bptt variables too
-	}
+            free(vocab);
+            free(vocab_hash);
+            //todo: free bptt variables too
+        }
     }
     
     real random(real min, real max);
@@ -320,7 +257,6 @@ public:
     void setRegularization(real newBeta) {beta=newBeta;}
     void setMinImprovement(real newMinImprovement) {min_improvement=newMinImprovement;}
     void setHiddenLayerSize(int newsize) {layer1_size=newsize;}
-    void setCompressionLayerSize(int newsize) {layerc_size=newsize;}
     void setDirectSize(long long newsize) {direct_size=newsize;}
     void setDirectOrder(int newsize) {direct_order=newsize;}
     void setBPTT(int newval) {bptt=newval;}
@@ -361,8 +297,6 @@ public:
     void testNet();
     void testNbest();
     void testGen();
-    
-    void matrixXvector(double *dest, double *srcvec, double *srcmatrix, int matrix_width, int from, int to, int from2, int to2, int type);
 };
 
 #endif

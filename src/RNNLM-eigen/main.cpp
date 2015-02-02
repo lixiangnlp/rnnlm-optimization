@@ -176,9 +176,8 @@ void EigenTest()
 
 int main(int argc, char **argv)
 {
-
     Eigen::setNbThreads(3);
-    EigenTest();
+   // EigenTest();
 
     int i;
     
@@ -798,7 +797,6 @@ int main(int argc, char **argv)
     	model1.setRegularization(regularization);
     	model1.setMinImprovement(min_improvement);
     	model1.setHiddenLayerSize(hidden_size);
-    	model1.setCompressionLayerSize(compression_size);
     	model1.setDirectSize(direct);
     	model1.setDirectOrder(direct_order);
     	model1.setBPTT(bptt);
